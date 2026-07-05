@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>禅道操作流程图</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Microsoft YaHei", "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f2 100%);
+            min-height: 100vh;
+            padding: 25px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 6px;
+            letter-spacing: 2px;
+        }
+
+        .header p {
+            font-size: 13px;
+            color: #7f8c8d;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 12.5px;
+            color: #555;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        .pm-color { background: #4A90D9; }
+        .pjm-color { background: #7B68EE; }
+        .dev-color { background: #52C41A; }
+        .qa-color { background: #FA8C16; }
+        .daily-color { background: #EB2F96; }
+        .offline-color { background: #B0BEC5; }
+
+        .flow-card {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            padding: 24px 28px;
+            margin-bottom: 20px;
+        }
+
+        .flow-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 16px;
+            padding-left: 10px;
+            border-left: 3px solid #4A90D9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .flow-title .subtitle {
+            font-size: 12px;
+            font-weight: normal;
+            color: #999;
+        }
+
+        .mermaid {
+            text-align: center;
+        }
+
+        /* 角色职责卡片 */
+        .roles-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 14px;
+            margin-bottom: 15px;
+        }
+
+        .role-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+            border-top: 3px solid;
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
+        }
+
+        .role-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.1);
+        }
+
+        .role-card.pm { border-color: #4A90D9; }
+        .role-card.pjm { border-color: #7B68EE; }
+        .role-card.dev { border-color: #52C41A; }
+        .role-card.qa { border-color: #FA8C16; }
+        .role-card.daily { border-color: #EB2F96; }
+
+        .role-card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .role-card ul {
+            list-style: none;
+        }
+
+        .role-card li {
+            font-size: 12px;
+            color: #666;
+            padding: 4px 0 4px 15px;
+            position: relative;
+            line-height: 1.55;
+        }
+
+        .role-card li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        .role-card.pm li::before { color: #4A90D9; }
+        .role-card.pjm li::before { color: #7B68EE; }
+        .role-card.dev li::before { color: #52C41A; }
+        .role-card.qa li::before { color: #FA8C16; }
+        .role-card.daily li::before { color: #EB2F96; }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        /* 响应式 */
+        @media (max-width: 1200px) {
+            .roles-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 22px;
+            }
+            .flow-card {
+                padding: 16px;
+            }
+            .roles-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>禅 道 操 作 流 程 图</h1>
+            <p>产品承接全流程 · 角色分工清晰 · 高效协同交付</p>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color pm-color"></div>
+                <span>产品经理</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color pjm-color"></div>
+                <span>项目经理</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color dev-color"></div>
+                <span>前后端开发</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color qa-color"></div>
+                <span>测试</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color daily-color"></div>
+                <span>全员日常</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color offline-color" style="border:2px dashed #90A4AE; background:none;"></div>
+                <span>线下操作</span>
+            </div>
+        </div>
+
+        <!-- 主流程图 - 纵向泳道 -->
+        <div class="flow-card">
+            <div class="flow-title">
+                <span>主流程 · 全生命周期</span>
+                <span class="subtitle">产品启动 → 项目启动 → 需求设计 → 开发测试 → Bug闭环</span>
+            </div>
+            <div class="mermaid">
+flowchart TD
+    %% 阶段1：产品启动
+    subgraph S1 [ 产品启动阶段 ]
+        direction LR
+        A1([产品启动会议<br/>明确背景目标价值]):::offline
+        A2[建立产品线<br/>多产品场景]:::pm
+        A3[建立产品<br/>名称/负责人/描述]:::pm
+        A4[建立产品计划<br/>依据交付日期]:::pm
+        A1 --> A2 --> A3 --> A4
+    end
+
+    %% 阶段2：项目启动
+    subgraph S2 [ 项目启动阶段 ]
+        direction LR
+        B1[建立项目<br/>关联产品+指定团队]:::pjm
+        B2[批量创建任务<br/>按角色分配任务类型]:::pjm
+        B1 --> B2
+    end
+
+    %% 阶段3：需求设计
+    subgraph S3 [ 需求设计阶段 ]
+        direction LR
+        C1([初步评估产品规模]):::offline
+        C2[划分产品模块<br/>小产品可省略]:::pm
+        C3([产品需求设计]):::offline
+        C4[建立研发需求<br/>关联模块/计划/对接人]:::pm
+        C5([需求评审会议]):::offline
+        C6[确认需求通过]:::pjm
+        C7[建立版本<br/>关联确认通过的需求]:::pm
+        C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7
+    end
+
+    %% 阶段4：开发测试
+    subgraph S4 [ 开发测试阶段 ]
+        direction LR
+        D1[查看需求详情<br/>开始开发]:::dev
+        D2[编写测试用例<br/>关联研发需求]:::qa
+        D3[开发完成<br/>版本中提交测试]:::dev
+        D4[执行测试用例]:::qa
+        D5{测试结果}:::decision
+        D6([测试通过]):::qa
+        D1 --> D3
+        D2 --> D4
+        D3 --> D4
+        D4 --> D5
+        D5 -->|通过| D6
+    end
+
+    %% 阶段5：Bug闭环
+    subgraph S5 [ Bug处理闭环 ]
+        direction LR
+        E1[转Bug / 直接建Bug<br/>关联版本和需求]:::qa
+        E2[确认Bug并修改]:::dev
+        E3[Bug解决操作]:::dev
+        E4[验证已解决Bug]:::qa
+        E5{验证结果}:::decision
+        E6([关闭Bug]):::qa
+        E7[重新激活Bug]:::qa
+        E1 --> E2 --> E3 --> E4 --> E5
+        E5 -->|通过| E6
+        E5 -->|不通过| E7
+        E7 --> E2
+    end
+
+    %% 阶段间连接
+    A4 --> B1
+    B2 --> C1
+    C7 --> D1
+    C7 --> D2
+    D5 -->|失败| E1
+
+    %% 样式定义
+    classDef pm fill:#4A90D9,stroke:#3A7BC8,color:#fff,stroke-width:2px,rx:8,ry:8
+    classDef pjm fill:#7B68EE,stroke:#6A5ACD,color:#fff,stroke-width:2px,rx:8,ry:8
+    classDef dev fill:#52C41A,stroke:#389E0D,color:#fff,stroke-width:2px,rx:8,ry:8
+    classDef qa fill:#FA8C16,stroke:#D46B08,color:#fff,stroke-width:2px,rx:8,ry:8
+    classDef offline fill:#fff,stroke:#90A4AE,color:#78909C,stroke-width:2px,stroke-dasharray:5 3,rx:8,ry:8
+    classDef decision fill:#fff,stroke:#888,color:#555,stroke-width:2px
+    classDef daily fill:#EB2F96,stroke:#C41D7F,color:#fff,stroke-width:2px,rx:8,ry:8
+            </div>
+        </div>
+
+        <!-- 工时填报 -->
+        <div class="flow-card" style="border-left: none;">
+            <div class="flow-title" style="border-left-color: #EB2F96;">
+                <span>日常管理 · 工时填报（全员每日下班前）</span>
+                <span class="subtitle">每日必做</span>
+            </div>
+            <div class="mermaid">
+flowchart LR
+    F1[下班前填写工时]:::daily
+    F2[任务上记录<br/>工作内容及消耗工时]:::daily
+    F3[工时总和 = 当日工作总时长]:::daily
+    F1 --> F2 --> F3
+
+    classDef daily fill:#EB2F96,stroke:#C41D7F,color:#fff,stroke-width:2px,rx:8,ry:8
+            </div>
+            <p style="text-align:center; margin-top:12px; font-size:12.5px; color:#888;">
+                参考格式：<code style="background:#fff0f6; padding:2px 8px; border-radius:4px; color:#C41D7F; font-size:12px;">"XXXXX需求+动作"</code>
+                &nbsp;&nbsp;例："自定义审批流模块需求设计" · "自定义审批流模块界面开发" · "自定义审批流模块测试用例编写"
+            </p>
+        </div>
+
+        <!-- 各角色职责 -->
+        <div class="roles-grid">
+            <div class="role-card pm">
+                <h3>📋 产品经理</h3>
+                <ul>
+                    <li>建立产品线（多产品场景）</li>
+                    <li>建立产品并完善信息</li>
+                    <li>建立产品交付计划</li>
+                    <li>评估规模、划分模块</li>
+                    <li>建立研发需求并关联</li>
+                    <li>建立版本并关联需求</li>
+                    <li>每日填报工时</li>
+                </ul>
+            </div>
+
+            <div class="role-card pjm">
+                <h3>📊 项目经理</h3>
+                <ul>
+                    <li>主持产品启动会议</li>
+                    <li>建立项目并关联产品</li>
+                    <li>指定团队成员</li>
+                    <li>批量创建任务并分配</li>
+                    <li>需求评审后确认通过</li>
+                    <li>每日填报工时</li>
+                </ul>
+            </div>
+
+            <div class="role-card dev">
+                <h3>💻 前后端开发</h3>
+                <ul>
+                    <li>接收开发/设计任务</li>
+                    <li>查看研发需求详情</li>
+                    <li>依据需求进行开发</li>
+                    <li>开发完成提交测试</li>
+                    <li>接收Bug并修改解决</li>
+                    <li>每日填报工时</li>
+                </ul>
+            </div>
+
+            <div class="role-card qa">
+                <h3>🧪 测试</h3>
+                <ul>
+                    <li>接收测试类任务</li>
+                    <li>编写测试用例</li>
+                    <li>执行测试用例</li>
+                    <li>转Bug或直接建Bug</li>
+                    <li>验证已解决的Bug</li>
+                    <li>通过关闭/不通过激活</li>
+                    <li>每日填报工时</li>
+                </ul>
+            </div>
+
+            <div class="role-card daily">
+                <h3>⏰ 全员日常</h3>
+                <ul>
+                    <li>下班前填写工时</li>
+                    <li>记录工作内容</li>
+                    <li>记录消耗工时</li>
+                    <li>工时和 = 当日总工时</li>
+                    <li>格式："需求名+动作"</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>禅道操作流程图 · 产品承接全流程指南</p>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+                primaryColor: '#fff',
+                primaryTextColor: '#333',
+                primaryBorderColor: '#ddd',
+                lineColor: '#999',
+                secondaryColor: '#f8fafc',
+                tertiaryColor: '#fff',
+                fontFamily: 'Microsoft YaHei, PingFang SC, sans-serif',
+                fontSize: '13px'
+            },
+            flowchart: {
+                curve: 'basis',
+                htmlLabels: true,
+                padding: 12,
+                nodeSpacing: 25,
+                rankSpacing: 45
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build output
+reading-push-admin/dist/
+
+# Database
+reading-push-server/data/
+reading-push-server/src/data/
+reading-push-server/logs/
+
+# Environment
+*.db
+*.db-wal
+*.db-shm
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TRAE workspace
+.trae-cn/
