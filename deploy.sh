@@ -6,25 +6,60 @@ echo "  读书推送系统 - 自动部署脚本"
 echo "  域名: chzf.online"
 echo "=========================================="
 
+# 自动检测包管理器
+if command -v apt-get &> /dev/null; then
+  PKG_MANAGER="apt"
+  PKG_INSTALL="apt-get install -y -qq"
+  PKG_UPDATE="apt-get update -qq && apt-get upgrade -y -qq"
+  export DEBIAN_FRONTEND=noninteractive
+elif command -v dnf &> /dev/null; then
+  PKG_MANAGER="dnf"
+  PKG_INSTALL="dnf install -y"
+  PKG_UPDATE="dnf update -y"
+elif command -v yum &> /dev/null; then
+  PKG_MANAGER="yum"
+  PKG_INSTALL="yum install -y"
+  PKG_UPDATE="yum update -y"
+else
+  echo "无法识别的包管理器，请手动安装依赖"
+  exit 1
+fi
+echo "  检测到系统包管理器: $PKG_MANAGER"
+
 # 1. 更新系统
 echo ""
 echo "[1/8] 更新系统包..."
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -qq
-apt-get upgrade -y -qq
+eval $PKG_UPDATE > /dev/null 2>&1
 
 # 2. 安装基础工具和编译依赖
 echo ""
 echo "[2/8] 安装基础工具和编译依赖..."
-# build-essential 和 python3 是 better-sqlite3 编译所需的
-apt-get install -y -qq curl nginx git sqlite3 build-essential python3 > /dev/null 2>&1
+if [ "$PKG_MANAGER" = "apt" ]; then
+  $PKG_INSTALL curl nginx git sqlite3 build-essential python3 > /dev/null 2>&1
+else
+  # CentOS/OpenCloudOS: 需要额外的 epel 和编译工具
+  $PKG_INSTALL curl git sqlite3 gcc gcc-c++ make python3 > /dev/null 2>&1
+  # 安装 nginx（如果不存在）
+  if ! command -v nginx &> /dev/null; then
+    $PKG_INSTALL nginx > /dev/null 2>&1
+  fi
+  # 启用并启动 nginx
+  systemctl enable nginx > /dev/null 2>&1
+  systemctl start nginx > /dev/null 2>&1
+fi
 
 # 3. 安装 Node.js 20
 echo ""
 echo "[3/8] 安装 Node.js 20..."
 if ! command -v node &> /dev/null; then
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
-  apt-get install -y -qq nodejs
+  if [ "$PKG_MANAGER" = "apt" ]; then
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+    $PKG_INSTALL nodejs > /dev/null 2>&1
+  else
+    # RHEL/CentOS/OpenCloudOS
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+    $PKG_INSTALL nodejs > /dev/null 2>&1
+  fi
 fi
 echo "  Node.js: $(node -v)"
 echo "  npm: $(npm -v)"
@@ -35,7 +70,7 @@ echo "[4/8] 安装 PM2..."
 if ! command -v pm2 &> /dev/null; then
   npm install -g pm2 > /dev/null 2>&1
 fi
-echo "  PM2: $(pm2 -v 2>/dev/null | head -1)"
+echo "  PM2 已安装"
 
 # 5. 克隆代码
 echo ""
@@ -53,7 +88,7 @@ fi
 echo ""
 echo "[6/8] 部署后端..."
 cd /root/reading-push-system/reading-push-server
-npm install 2>&1 | tail -3
+npm install 2>&1 | tail -5
 mkdir -p logs
 
 # 停止旧进程
@@ -62,14 +97,14 @@ pm2 delete reading-push-server 2>/dev/null || true
 
 # 启动后端
 pm2 start ecosystem.config.cjs
-sleep 2
+sleep 3
 
 # 检查后端是否启动成功
 if pm2 pid reading-push-server > /dev/null 2>&1; then
   echo "  后端服务启动成功 (PID: $(pm2 pid reading-push-server))"
 else
   echo "  后端启动失败，查看日志："
-  pm2 logs reading-push-server --lines 10 --nostream
+  pm2 logs reading-push-server --lines 15 --nostream
   exit 1
 fi
 
@@ -82,7 +117,7 @@ echo ""
 echo "[7/8] 部署前端..."
 cd /root/reading-push-system/reading-push-admin
 npm install 2>&1 | tail -3
-npm run build 2>&1 | tail -3
+npm run build 2>&1 | tail -5
 
 if [ -d "dist" ]; then
   rm -rf /var/www/reading-push
@@ -93,22 +128,31 @@ else
   exit 1
 fi
 
-# 8. 配置 Nginx（带域名）
+# 8. 配置 Nginx
 echo ""
 echo "[8/8] 配置 Nginx..."
-cat > /etc/nginx/sites-available/reading-push << 'NGINX_CONF'
+NGINX_CONF_DIR="/etc/nginx"
+# 检查 nginx 配置目录结构（Debian vs RHEL）
+if [ -d "/etc/nginx/sites-available" ]; then
+  NGINX_ENABLED_DIR="/etc/nginx/sites-enabled"
+  NGINX_CONF_DIR="/etc/nginx/sites-available"
+else
+  NGINX_ENABLED_DIR="/etc/nginx/conf.d"
+  NGINX_CONF_DIR="/etc/nginx/conf.d"
+fi
+
+# 域名配置
+cat > ${NGINX_CONF_DIR}/reading-push.conf << 'NGINX_CONF'
 server {
     listen 80;
     server_name chzf.online www.chzf.online;
 
-    # 前端静态文件
     location / {
         root /var/www/reading-push;
         index index.html;
         try_files $uri $uri/ /index.html;
     }
 
-    # API 代理到后端
     location /api/ {
         proxy_pass http://127.0.0.1:3000/;
         proxy_http_version 1.1;
@@ -120,20 +164,18 @@ server {
 }
 NGINX_CONF
 
-# 同时配置 IP 直接访问（备用）
-cat > /etc/nginx/sites-available/reading-push-ip << 'NGINX_CONF'
+# IP 直接访问（备用）
+cat > ${NGINX_CONF_DIR}/reading-push-ip.conf << 'NGINX_CONF'
 server {
     listen 80 default_server;
     server_name _;
 
-    # 前端静态文件
     location / {
         root /var/www/reading-push;
         index index.html;
         try_files $uri $uri/ /index.html;
     }
 
-    # API 代理到后端
     location /api/ {
         proxy_pass http://127.0.0.1:3000/;
         proxy_http_version 1.1;
@@ -145,15 +187,13 @@ server {
 }
 NGINX_CONF
 
-# 启用配置
-ln -sf /etc/nginx/sites-available/reading-push /etc/nginx/sites-enabled/
-ln -sf /etc/nginx/sites-available/reading-push-ip /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+# 删除默认配置
+rm -f ${NGINX_ENABLED_DIR}/default 2>/dev/null || true
 
 nginx -t && systemctl reload nginx
 echo "  Nginx 配置完成"
 
-# 验证后端 API
+# 验证
 echo ""
 echo "=========================================="
 echo "  验证服务..."
