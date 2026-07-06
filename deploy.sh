@@ -47,26 +47,25 @@ systemctl start mysqld > /dev/null 2>&1 || systemctl start mysql > /dev/null 2>&
 # 创建数据库和用户（幂等操作）
 echo "  配置 MySQL 数据库..."
 MYSQL_ROOT_PASS="${MYSQL_ROOT_PASS:-}"
+
+# 先检测 root 是否可无密码登录
 if [ -z "$MYSQL_ROOT_PASS" ]; then
-  # 尝试无密码登录（首次安装）
-  mysql -u root <<SQL 2>/dev/null || {
+  if ! mysql -u root -e "SELECT 1" > /dev/null 2>&1; then
     echo "  ⚠️ 需要 MySQL root 密码，请设置环境变量 MYSQL_ROOT_PASS 后重试"
     echo "  示例: MYSQL_ROOT_PASS=yourpassword bash deploy.sh"
     exit 1
-  }
-CREATE DATABASE IF NOT EXISTS reading_push CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS 'reading_push'@'localhost' IDENTIFIED BY 'reading_push_2024';
-GRANT ALL PRIVILEGES ON reading_push.* TO 'reading_push'@'localhost';
-FLUSH PRIVILEGES;
-SQL
+  fi
+  MYSQL_CMD="mysql -u root"
 else
-  mysql -u root -p"${MYSQL_ROOT_PASS}" <<SQL
+  MYSQL_CMD="mysql -u root -p${MYSQL_ROOT_PASS}"
+fi
+
+$MYSQL_CMD <<'EOSQL'
 CREATE DATABASE IF NOT EXISTS reading_push CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS 'reading_push'@'localhost' IDENTIFIED BY 'reading_push_2024';
 GRANT ALL PRIVILEGES ON reading_push.* TO 'reading_push'@'localhost';
 FLUSH PRIVILEGES;
-SQL
-fi
+EOSQL
 echo "  MySQL 配置完成"
 
 # 2. 安装 Node.js 20
