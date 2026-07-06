@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
 import db from '../db/init.js'
 import { authMiddleware, superAdminOnly } from '../middleware/auth.js'
 
@@ -19,16 +20,17 @@ router.get('/', (req, res) => {
 })
 
 // 新增用户
-router.post('/', superAdminOnly, (req, res) => {
+router.post('/', superAdminOnly, async (req, res) => {
   const { username, password, name, role, companyId, companyName, status } = req.body
   if (!username || !password || !name) {
     return res.status(400).json({ message: '用户名、密码和姓名不能为空' })
   }
 
   try {
+    const hashedPassword = await bcrypt.hash(password, 10)
     const result = db.prepare(
       'INSERT INTO users (username, password, name, role, company_id, company_name, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(username, password, name, role || 'operator', companyId || null, companyName || '-', status || 'active')
+    ).run(username, hashedPassword, name, role || 'operator', companyId || null, companyName || '-', status || 'active')
 
     const user = db.prepare('SELECT id, username, name, role, company_id, company_name, status, created_at FROM users WHERE id = ?').get(result.lastInsertRowid)
     res.status(201).json({ data: user, message: '新增成功' })
@@ -41,14 +43,15 @@ router.post('/', superAdminOnly, (req, res) => {
 })
 
 // 编辑用户
-router.put('/:id', superAdminOnly, (req, res) => {
+router.put('/:id', superAdminOnly, async (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id)
   if (!user) return res.status(404).json({ message: '用户不存在' })
 
   const { username, password, name, role, companyId, companyName, status } = req.body
   if (password) {
+    const hashedPassword = await bcrypt.hash(password, 10)
     db.prepare('UPDATE users SET password = ?, name = ?, role = ?, company_id = ?, company_name = ?, status = ? WHERE id = ?')
-      .run(password, name || user.name, role ?? user.role, companyId ?? user.company_id, companyName ?? user.company_name, status ?? user.status, req.params.id)
+      .run(hashedPassword, name || user.name, role ?? user.role, companyId ?? user.company_id, companyName ?? user.company_name, status ?? user.status, req.params.id)
   } else {
     db.prepare('UPDATE users SET name = ?, role = ?, company_id = ?, company_name = ?, status = ? WHERE id = ?')
       .run(name || user.name, role ?? user.role, companyId ?? user.company_id, companyName ?? user.company_name, status ?? user.status, req.params.id)

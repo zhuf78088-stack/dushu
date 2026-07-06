@@ -126,7 +126,7 @@ router.post('/batch-delete', (req, res) => {
 })
 
 // 手动触发推送
-router.post('/:id/trigger', (req, res) => {
+router.post('/:id/trigger', async (req, res) => {
   const task = db.prepare('SELECT * FROM push_tasks WHERE id = ?').get(req.params.id)
   if (!task) return res.status(404).json({ message: '推送任务不存在' })
 
@@ -144,25 +144,26 @@ router.post('/:id/trigger', (req, res) => {
 
   const pushContent = `📖 ${task.book_name}\n\n${task.content}`
 
-  axios.post(webhookUrl, {
-    msgtype: 'text',
-    text: { content: pushContent }
-  }, {
-    headers: { 'Content-Type': 'application/json; charset=UTF-8' }
-  })
-  .then(() => {
+  try {
+    await axios.post(webhookUrl, {
+      msgtype: 'text',
+      text: { content: pushContent }
+    }, {
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' },
+      timeout: 10000
+    })
+
     db.prepare('UPDATE push_tasks SET exec_status = ? WHERE id = ?').run('pushed', req.params.id)
     const updated = db.prepare('SELECT * FROM push_tasks WHERE id = ?').get(req.params.id)
     res.json({ data: updated, message: '推送成功！' })
-  })
-  .catch((err) => {
+  } catch (err) {
     const wxError = err.response?.data
     console.error('Webhook推送失败:', wxError || err.message)
     res.status(500).json({
       message: '推送失败',
       detail: wxError || err.message
     })
-  })
+  }
 })
 
 // Excel批量导入推送任务

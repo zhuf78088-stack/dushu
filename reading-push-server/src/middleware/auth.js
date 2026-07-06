@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = 'reading-push-system-secret-key-2024'
+const JWT_SECRET = process.env.JWT_SECRET || 'reading-push-system-dev-secret-change-in-production'
 const JWT_EXPIRES_IN = '7d'
 
 export function generateToken(user) {

@@ -44,14 +44,6 @@
         </el-form-item>
       </el-form>
 
-      <div class="demo-accounts">
-        <p class="demo-title">演示账号</p>
-        <div class="demo-list">
-          <el-tag type="info" size="small" class="demo-tag">admin / admin123（超管）</el-tag>
-          <el-tag type="info" size="small" class="demo-tag">meice / meice123（美策广告）</el-tag>
-          <el-tag type="info" size="small" class="demo-tag">xiaoming / xiaoming123（小明科技）</el-tag>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -135,27 +127,4 @@ const handleLogin = async () => {
   margin: 0;
 }
 
-.demo-accounts {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
-}
-
-.demo-title {
-  font-size: 12px;
-  color: #999;
-  margin: 0 0 10px;
-  text-align: center;
-}
-
-.demo-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: center;
-}
-
-.demo-tag {
-  font-size: 11px;
-}
 </style>

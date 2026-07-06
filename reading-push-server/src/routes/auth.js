@@ -1,11 +1,12 @@
 import { Router } from 'express'
+import bcrypt from 'bcryptjs'
 import db from '../db/init.js'
-import { generateToken } from '../middleware/auth.js'
+import { generateToken, authMiddleware } from '../middleware/auth.js'
 
 export const router = Router()
 
 // 登录
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { username, password } = req.body
 
   if (!username || !password) {
@@ -13,7 +14,12 @@ router.post('/login', (req, res) => {
   }
 
   const user = db.prepare("SELECT * FROM users WHERE username = ? AND status = 'active'").get(username)
-  if (!user || user.password !== password) {
+  if (!user) {
+    return res.status(401).json({ message: '用户名或密码错误' })
+  }
+
+  const valid = await bcrypt.compare(password, user.password)
+  if (!valid) {
     return res.status(401).json({ message: '用户名或密码错误' })
   }
 
@@ -27,7 +33,6 @@ router.post('/login', (req, res) => {
 })
 
 // 获取当前用户信息
-router.get('/me', (req, res) => {
-  // 这个路由由authMiddleware保护
+router.get('/me', authMiddleware, (req, res) => {
   res.json({ user: req.user })
 })

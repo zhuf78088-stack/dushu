@@ -8,10 +8,21 @@ import { router as pushTaskRouter } from './routes/pushTasks.js'
 import { initDB, default as db } from './db/init.js'
 
 const app = express()
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 
 // 中间件
-app.use(cors())
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:5173').split(',').map(s => s.trim())
+app.use(cors({
+  origin(origin, callback) {
+    // 允许无 origin 的请求（如 curl、服务端调用）
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error(`Origin ${origin} not allowed by CORS`))
+    }
+  },
+  credentials: true
+}))
 app.use(express.json())
 
 // 路由
@@ -36,6 +47,7 @@ initDB()
 app.listen(PORT, () => {
   console.log(`📚 读书推送后端服务已启动: http://localhost:${PORT}`)
   console.log(`   API地址: http://localhost:${PORT}/api`)
+  console.log(`   CORS允许来源: ${ALLOWED_ORIGINS.join(', ')}`)
 })
 
 // ============ 自动推送调度器 ============

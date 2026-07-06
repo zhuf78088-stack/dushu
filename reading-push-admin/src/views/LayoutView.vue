@@ -24,9 +24,6 @@
     <el-container>
       <!-- 顶部栏 -->
       <el-header class="header-bar">
-        <div class="header-left">
-          <breadcrumb />
-        </div>
         <div class="header-right">
           <el-tag v-if="authStore.isSuperAdmin" type="danger" effect="dark" size="small">超级管理员</el-tag>
           <el-tag v-else type="success" size="small">{{ authStore.currentCompanyName }}</el-tag>

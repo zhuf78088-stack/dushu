@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import bcrypt from 'bcryptjs'
 import path from 'path'
 import fs from 'fs'
 import { fileURLToPath } from 'url'
@@ -70,23 +71,32 @@ export function initDB() {
   // 初始化默认数据
   const companyCount = db.prepare('SELECT COUNT(*) as count FROM companies').get().count
   if (companyCount === 0) {
+    // 使用bcrypt对种子密码进行哈希
+    const adminHash = bcrypt.hashSync('admin123', 10)
+    const meiceHash = bcrypt.hashSync('meice123', 10)
+    const xiaomingHash = bcrypt.hashSync('xiaoming123', 10)
+
     db.exec(`
       INSERT INTO companies (name, contact, phone, webhook, status) VALUES
-        ('美策广告', '张经理', '13800138001', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=meice001', 'active'),
-        ('小明科技', '李总', '13900139002', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xiaoming002', 'active'),
-        ('星辰教育', '王老师', '13700137003', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xingchen003', 'inactive');
+        ('美策广告', '张经理', '13800138001', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'active'),
+        ('小明科技', '李总', '13900139002', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'active'),
+        ('星辰教育', '王老师', '13700137003', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'inactive');
+    `)
 
-      INSERT INTO users (username, password, name, role, company_id, company_name, status) VALUES
-        ('admin', 'admin123', '超级管理员', 'superadmin', NULL, '-', 'active'),
-        ('meice', 'meice123', '美策操作员', 'operator', 1, '美策广告', 'active'),
-        ('xiaoming', 'xiaoming123', '小明操作员', 'operator', 2, '小明科技', 'active');
+    db.prepare("INSERT INTO users (username, password, name, role, company_id, company_name, status) VALUES (?, ?, '超级管理员', 'superadmin', NULL, '-', 'active')")
+      .run('admin', adminHash)
+    db.prepare("INSERT INTO users (username, password, name, role, company_id, company_name, status) VALUES (?, ?, '美策操作员', 'operator', 1, '美策广告', 'active')")
+      .run('meice', meiceHash)
+    db.prepare("INSERT INTO users (username, password, name, role, company_id, company_name, status) VALUES (?, ?, '小明操作员', 'operator', 2, '小明科技', 'active')")
+      .run('xiaoming', xiaomingHash)
 
+    db.exec(`
       INSERT INTO push_tasks (company_id, company_name, title, push_date, push_time, book_name, content, webhook, exec_status, status) VALUES
-        (1, '美策广告', '今日读书分享', '2024-07-07', '00:00', '《高效能人士的七个习惯》', '第一章 积极主动的内容...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=meice001', 'pushed', 'active'),
-        (1, '美策广告', '今日读书分享', '2024-07-08', '00:00', '《高效能人士的七个习惯》', '第二章 以终为始的内容...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=meice001', 'pending', 'active'),
-        (1, '美策广告', '今日读书分享', '2024-07-09', '00:00', '《高效能人士的七个习惯》', '第三章 第一节 要事第一...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=meice001', 'pending', 'active'),
-        (2, '小明科技', '晨读分享', '2024-07-10', '09:00', '《深度工作》', '第一章 深度工作是有价值的...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xiaoming002', 'pending', 'active'),
-        (2, '小明科技', '晨读分享', '2024-07-11', '09:00', '《深度工作》', '第二章 深度工作是少见的...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xiaoming002', 'pending', 'inactive');
+        (1, '美策广告', '今日读书分享', '2024-07-07', '00:00', '《高效能人士的七个习惯》', '第一章 积极主动的内容...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'pushed', 'active'),
+        (1, '美策广告', '今日读书分享', '2024-07-08', '00:00', '《高效能人士的七个习惯》', '第二章 以终为始的内容...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'pending', 'active'),
+        (1, '美策广告', '今日读书分享', '2024-07-09', '00:00', '《高效能人士的七个习惯》', '第三章 第一节 要事第一...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'pending', 'active'),
+        (2, '小明科技', '晨读分享', '2024-07-10', '09:00', '《深度工作》', '第一章 深度工作是有价值的...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'pending', 'active'),
+        (2, '小明科技', '晨读分享', '2024-07-11', '09:00', '《深度工作》', '第二章 深度工作是少见的...', 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY_HERE', 'pending', 'inactive');
     `)
     console.log('  ✓ 数据库初始化完成，已插入默认数据')
   } else {

@@ -76,7 +76,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { userApi, companyApi } from '../api'
@@ -100,12 +100,12 @@ const form = reactive({
   status: 'active'
 })
 
-const rules = {
+const rules = computed(() => ({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+  password: [{ required: !isEdit.value, message: '请输入密码', trigger: 'blur' }],
   companyId: [{ required: true, message: '请选择所属公司', trigger: 'change' }]
-}
+}))
 
 const fetchList = async () => {
   loading.value = true
