@@ -5,7 +5,7 @@ import { router as authRouter } from './routes/auth.js'
 import { router as companyRouter } from './routes/companies.js'
 import { router as userRouter } from './routes/users.js'
 import { router as pushTaskRouter } from './routes/pushTasks.js'
-import { initDB, default as db } from './db/init.js'
+import { initDB, default as pool } from './db/mysql.js'
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -43,11 +43,15 @@ app.use((err, req, res, next) => {
 })
 
 // 初始化数据库并启动服务
-initDB()
-app.listen(PORT, () => {
-  console.log(`📚 读书推送后端服务已启动: http://localhost:${PORT}`)
-  console.log(`   API地址: http://localhost:${PORT}/api`)
-  console.log(`   CORS允许来源: ${ALLOWED_ORIGINS.join(', ')}`)
+initDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`📚 读书推送后端服务已启动: http://localhost:${PORT}`)
+    console.log(`   API地址: http://localhost:${PORT}/api`)
+    console.log(`   CORS允许来源: ${ALLOWED_ORIGINS.join(', ')}`)
+  })
+}).catch(err => {
+  console.error('❌ 数据库初始化失败:', err.message)
+  process.exit(1)
 })
 
 // ============ 自动推送调度器 ============
@@ -59,7 +63,7 @@ async function doScheduledCheck() {
 
     // 只推送当天的到期任务：推送日期 = 今天 且 推送时间 <= 当前时间
     // 同时要求所属公司状态为生效
-    const tasks = db.prepare(`
+    const [tasks] = await pool.execute(`
       SELECT pt.* FROM push_tasks pt
       INNER JOIN companies c ON pt.company_id = c.id
       WHERE pt.status = 'active'
@@ -67,7 +71,7 @@ async function doScheduledCheck() {
         AND c.status = 'active'
         AND pt.push_date = ?
         AND pt.push_time <= ?
-    `).all(currentDate, currentTime)
+    `, [currentDate, currentTime])
 
     if (tasks.length === 0) return
 
@@ -75,8 +79,8 @@ async function doScheduledCheck() {
 
     for (const task of tasks) {
       try {
-        const company = db.prepare('SELECT webhook FROM companies WHERE id = ?').get(task.company_id)
-        const webhookUrl = company?.webhook || task.webhook
+        const [companyRows] = await pool.execute('SELECT webhook FROM companies WHERE id = ?', [task.company_id])
+        const webhookUrl = companyRows[0]?.webhook || task.webhook
 
         if (!webhookUrl) {
           console.error(`    ⚠️ 任务 #${task.id} 无Webhook地址，跳过`)
@@ -93,7 +97,7 @@ async function doScheduledCheck() {
           timeout: 10000
         })
 
-        db.prepare("UPDATE push_tasks SET exec_status = 'pushed' WHERE id = ?").run(task.id)
+        await pool.execute("UPDATE push_tasks SET exec_status = 'pushed' WHERE id = ?", [task.id])
         console.log(`    ✅ 任务 #${task.id} [${task.push_date} ${task.push_time}] ${task.book_name} 推送成功`)
       } catch (err) {
         const wxError = err.response?.data

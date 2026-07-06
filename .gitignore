@@ -13,6 +13,9 @@ reading-push-server/logs/
 *.db
 *.db-wal
 *.db-shm
+.env
+.env.production
+.env.local
 
 # IDE
 .vscode/
