@@ -24,8 +24,8 @@ echo "  包管理器: $PKG_MANAGER"
 
 # 1. 安装基础依赖 + MySQL
 echo ""
-echo "[1/7] 安装编译工具和基础依赖..."
-$PKG_INSTALL curl git gcc gcc-c++ make python3 > /dev/null 2>&1
+echo "[1/7] 安装基础依赖..."
+$PKG_INSTALL curl git python3 > /dev/null 2>&1
 if ! command -v nginx &> /dev/null; then
   $PKG_INSTALL nginx > /dev/null 2>&1
 fi
