@@ -49,6 +49,11 @@ initDB().then(() => {
     console.log(`   API地址: http://localhost:${PORT}/api`)
     console.log(`   CORS允许来源: ${ALLOWED_ORIGINS.join(', ')}`)
   })
+
+  // 调度器在数据库就绪后启动
+  console.log('  ⏰ 自动推送调度器已启动，每60秒检查一次')
+  doScheduledCheck()
+  setInterval(doScheduledCheck, 60 * 1000)
 }).catch(err => {
   console.error('❌ 数据库初始化失败:', err.message)
   process.exit(1)
@@ -108,7 +113,3 @@ async function doScheduledCheck() {
     console.error('  ❌ 调度器执行出错:', err.message)
   }
 }
-
-console.log('  ⏰ 自动推送调度器已启动，每60秒检查一次')
-doScheduledCheck()
-setInterval(doScheduledCheck, 60 * 1000)
