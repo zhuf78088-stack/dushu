@@ -405,6 +405,19 @@ const importing = ref(false)
 const uploadRef = ref()
 const importedData = ref([])
 
+// Excel日期序列号转 YYYY-MM-DD 格式；已是字符串则直接返回
+const excelSerialToDate = (val) => {
+  if (typeof val === 'number' && val > 1) {
+    // Excel 日期序列号：以 1900-01-01 为第 1 天（含闰年 bug）
+    const date = new Date((val - 25569) * 86400000)
+    const y = date.getFullYear()
+    const m = String(date.getMonth() + 1).padStart(2, '0')
+    const d = String(date.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  return String(val || '')
+}
+
 const handleFileChange = (file) => {
   const reader = new FileReader()
   reader.onload = (e) => {
@@ -430,7 +443,7 @@ const handleImport = async () => {
     for (const row of rows) {
       if (row.length < 3) continue
       tasks.push({
-        pushDate: String(row[0] || ''),
+        pushDate: excelSerialToDate(row[0]),
         pushTime: String(row[1] || '00:00'),
         bookName: String(row[2] || ''),
         content: String(row[3] || '')
