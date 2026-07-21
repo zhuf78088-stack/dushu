@@ -56,6 +56,8 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } else if (to.path === '/login' && authStore.isLoggedIn) {
     next('/')
+  } else if (to.path === '/users' && !authStore.isSuperAdmin) {
+    next('/dashboard')
   } else {
     next()
   }

@@ -25,8 +25,13 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ message: '用户名或密码错误' })
     }
 
-    const token = generateToken(user)
-    const { password: _, ...userInfo } = user
+    // 加载用户关联的所有公司ID
+    const [companyRows] = await pool.execute('SELECT company_id FROM user_companies WHERE user_id = ?', [user.id])
+    const companyIds = companyRows.map(r => r.company_id)
+
+    const token = generateToken({ ...user, companyIds })
+    const { password: _, company_id: __, ...userInfo } = user
+    userInfo.companyIds = companyIds
 
     res.json({
       token,

@@ -58,7 +58,7 @@
         <el-table-column type="selection" width="50" />
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="push_date" label="推送日期" width="120" sortable />
-        <el-table-column prop="push_time" label="推送时间" width="100" sortable />
+        <el-table-column prop="push_title" label="推送标题" width="130" show-overflow-tooltip />
         <el-table-column prop="book_name" label="推送书籍名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="content" label="推送书籍内容" min-width="220" show-overflow-tooltip />
         <el-table-column prop="exec_status" label="执行状态" width="100">
@@ -92,8 +92,8 @@
         <el-form-item label="推送日期" prop="pushDate">
           <el-date-picker v-model="form.pushDate" type="date" placeholder="选择推送日期" style="width: 100%" value-format="YYYY-MM-DD" />
         </el-form-item>
-        <el-form-item label="推送时间" prop="pushTime">
-          <el-time-picker v-model="form.pushTime" placeholder="选择推送时间" style="width: 100%" format="HH:mm" value-format="HH:mm" />
+        <el-form-item label="推送标题">
+          <el-input v-model="form.pushTitle" placeholder="不填默认为【每日分享】" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item label="推送书籍名称" prop="bookName">
           <el-input v-model="form.bookName" placeholder="请输入书籍名称" />
@@ -124,7 +124,7 @@
     <el-dialog v-model="importDialogVisible" title="Excel批量导入推送任务" width="500px">
       <el-alert title="导入说明" type="info" :closable="false" style="margin-bottom: 16px;">
         <div style="font-size: 12px; line-height: 1.8; margin-top: 8px;">
-          <p>Excel需包含以下列：推送日期(YYYY-MM-DD)、推送时间(HH:mm)、书籍名称、书籍内容。导入后任务状态默认为生效。</p>
+          <p>Excel需包含以下列：推送日期(YYYY-MM-DD)、推送标题(选填)、书籍名称、书籍内容。导入后任务状态默认为生效，推送时间以公司配置为准。</p>
           <p style="margin-top: 4px;"><el-link type="primary" @click="downloadTemplate">点击下载导入模板</el-link></p>
         </div>
       </el-alert>
@@ -267,7 +267,7 @@ const form = reactive({
   companyId: null,
   companyName: '',
   pushDate: '',
-  pushTime: '',
+  pushTitle: '',
   bookName: '',
   content: '',
   webhook: '',
@@ -278,7 +278,6 @@ const form = reactive({
 
 const rules = {
   pushDate: [{ required: true, message: '请选择推送日期', trigger: 'change' }],
-  pushTime: [{ required: true, message: '请选择推送时间', trigger: 'change' }],
   bookName: [{ required: true, message: '请输入书籍名称', trigger: 'blur' }],
   content: [{ required: true, message: '请输入书籍内容', trigger: 'blur' }]
 }
@@ -304,7 +303,7 @@ const resetForm = () => {
   form.companyId = companyId.value
   form.companyName = companyName.value
   form.pushDate = ''
-  form.pushTime = ''
+  form.pushTitle = ''
   form.bookName = ''
   form.content = ''
   form.title = '今日读书分享'
@@ -328,7 +327,7 @@ const handleEdit = (row) => {
   form.companyId = row.company_id
   form.companyName = row.company_name
   form.pushDate = row.push_date
-  form.pushTime = row.push_time
+  form.pushTitle = row.push_title || ''
   form.bookName = row.book_name
   form.content = row.content
   form.webhook = row.webhook
@@ -353,8 +352,8 @@ const handleSubmit = async () => {
     companyId: form.companyId,
     companyName: form.companyName,
     title: form.title,
+    pushTitle: form.pushTitle || '【每日分享】',
     pushDate: form.pushDate,
-    pushTime: form.pushTime,
     bookName: form.bookName,
     content: form.content,
     webhook: form.webhook,
@@ -381,7 +380,7 @@ const handleSubmit = async () => {
 // 手动触发推送
 const handleTriggerPush = async (row) => {
   await ElMessageBox.confirm(
-    `确定要手动推送该任务吗？\n\n书籍：${row.book_name}\n日期：${row.push_date} ${row.push_time}\n\n推送后将把内容发送到企业微信群。`,
+    `确定要手动推送该任务吗？\n\n书籍：${row.book_name}\n日期：${row.push_date}\n\n推送后将把内容发送到企业微信群。`,
     '确认推送',
     {
       confirmButtonText: '确认推送',
@@ -440,13 +439,14 @@ const handleImport = async () => {
   try {
     const rows = importedData.value.slice(1)
     const tasks = []
+    const hasPushTitle = rows[0] && rows[0].length >= 4
     for (const row of rows) {
-      if (row.length < 3) continue
+      if (row.length < 2) continue
       tasks.push({
         pushDate: excelSerialToDate(row[0]),
-        pushTime: String(row[1] || '00:00'),
-        bookName: String(row[2] || ''),
-        content: String(row[3] || '')
+        pushTitle: hasPushTitle ? String(row[1] || '') : '',
+        bookName: String(hasPushTitle ? (row[2] || '') : (row[1] || '')),
+        content: String(hasPushTitle ? (row[3] || '') : (row[2] || ''))
       })
     }
 
@@ -462,8 +462,8 @@ const handleImport = async () => {
 }
 
 const downloadTemplate = () => {
-  const headers = ['推送日期', '推送时间', '书籍名称', '书籍内容']
-  const example = ['2024-07-07', '00:00', '《高效能人士的七个习惯》', '第一章 积极主动的内容...']
+  const headers = ['推送日期', '推送标题', '书籍名称', '书籍内容']
+  const example = ['2024-07-07', '【每日分享】', '《高效能人士的七个习惯》', '第一章 积极主动的内容...']
   const ws = XLSX.utils.aoa_to_sheet([headers, example])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, '推送任务模板')

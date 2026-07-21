@@ -19,7 +19,25 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="company_name" label="所属公司" min-width="130" />
+        <el-table-column label="所属公司" min-width="180">
+          <template #default="{ row }">
+            <template v-if="row.role === 'superadmin'">
+              <el-tag size="small" type="info">全部公司</el-tag>
+            </template>
+            <template v-else>
+              <el-tag
+                v-for="cid in (row.company_ids || [])"
+                :key="cid"
+                size="small"
+                type="primary"
+                style="margin-right: 4px; margin-bottom: 2px;"
+              >
+                {{ getCompanyName(cid) }}
+              </el-tag>
+              <span v-if="!(row.company_ids && row.company_ids.length)" style="color: #999;">未分配</span>
+            </template>
+          </template>
+        </el-table-column>
         <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'">
@@ -55,8 +73,8 @@
             <el-radio label="operator">操作员</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="form.role === 'operator'" label="所属公司" prop="companyId">
-          <el-select v-model="form.companyId" placeholder="请选择所属公司" style="width: 100%">
+        <el-form-item v-if="form.role === 'operator'" label="所属公司" prop="companyIds">
+          <el-select v-model="form.companyIds" placeholder="请选择所属公司（可多选）" multiple style="width: 100%">
             <el-option v-for="c in companyList" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
@@ -95,8 +113,7 @@ const form = reactive({
   name: '',
   password: '',
   role: 'operator',
-  companyId: null,
-  companyName: '',
+  companyIds: [],
   status: 'active'
 })
 
@@ -104,7 +121,7 @@ const rules = computed(() => ({
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   name: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
   password: [{ required: !isEdit.value, message: '请输入密码', trigger: 'blur' }],
-  companyId: [{ required: true, message: '请选择所属公司', trigger: 'change' }]
+  companyIds: [{ required: true, message: '请至少选择一个所属公司', trigger: 'change' }]
 }))
 
 const fetchList = async () => {
@@ -122,14 +139,18 @@ const fetchCompanies = async () => {
   companyList.value = res.data
 }
 
+const getCompanyName = (cid) => {
+  const c = companyList.value.find(item => item.id === cid)
+  return c ? c.name : `公司#${cid}`
+}
+
 const resetForm = () => {
   form.id = null
   form.username = ''
   form.name = ''
   form.password = ''
   form.role = 'operator'
-  form.companyId = null
-  form.companyName = ''
+  form.companyIds = []
   form.status = 'active'
 }
 
@@ -146,8 +167,7 @@ const handleEdit = (row) => {
   form.name = row.name
   form.password = ''
   form.role = row.role
-  form.companyId = row.company_id
-  form.companyName = row.company_name
+  form.companyIds = row.company_ids || []
   form.status = row.status
   dialogVisible.value = true
 }
@@ -163,14 +183,12 @@ const handleSubmit = async () => {
   const valid = await formRef.value?.validate().catch(() => false)
   if (!valid) return
 
-  const company = companyList.value.find(c => c.id === form.companyId)
   const data = {
     username: form.username,
     name: form.name,
     password: form.password || undefined,
     role: form.role,
-    companyId: form.companyId,
-    companyName: company ? company.name : '-',
+    companyIds: form.role === 'operator' ? form.companyIds : [],
     status: form.status
   }
 

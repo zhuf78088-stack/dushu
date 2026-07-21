@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import multer from 'multer'
 import axios from 'axios'
+import { fetchWeather } from '../utils/weather.js'
 import pool from '../db/mysql.js'
 import { authMiddleware } from '../middleware/auth.js'
 
@@ -15,14 +16,24 @@ router.get('/', async (req, res, next) => {
     let rows
 
     if (companyId) {
-      const [result] = await pool.execute('SELECT * FROM push_tasks WHERE company_id = ? ORDER BY push_date ASC, push_time ASC', [companyId])
+      const [result] = await pool.execute('SELECT * FROM push_tasks WHERE company_id = ? ORDER BY push_date ASC', [companyId])
       rows = result
     } else if (req.user.role === 'superadmin') {
-      const [result] = await pool.execute('SELECT * FROM push_tasks ORDER BY push_date ASC, push_time ASC')
+      const [result] = await pool.execute('SELECT * FROM push_tasks ORDER BY push_date ASC')
       rows = result
     } else {
-      const [result] = await pool.execute('SELECT * FROM push_tasks WHERE company_id = ? ORDER BY push_date ASC, push_time ASC', [req.user.companyId])
-      rows = result
+      // 操作员可查看自己管理的所有公司的任务
+      const companyIds = req.user.companyIds || [req.user.companyId]
+      if (companyIds.length === 0) {
+        rows = []
+      } else {
+        const placeholders = companyIds.map(() => '?').join(',')
+        const [result] = await pool.execute(
+          `SELECT * FROM push_tasks WHERE company_id IN (${placeholders}) ORDER BY push_date ASC`,
+          companyIds
+        )
+        rows = result
+      }
     }
 
     res.json({ data: rows })
@@ -34,26 +45,27 @@ router.get('/', async (req, res, next) => {
 // 新增推送任务
 router.post('/', async (req, res, next) => {
   try {
-    const { companyId, companyName, title, pushDate, pushTime, bookName, content, webhook, status, execStatus } = req.body
+    const { companyId, companyName, title, pushTitle, pushDate, bookName, content, webhook, status, execStatus } = req.body
 
-    if (!companyId || !pushDate || !pushTime || !bookName || !content) {
-      return res.status(400).json({ message: '公司ID、推送日期、推送时间、书籍名称和书籍内容不能为空' })
+    if (!companyId || !pushDate || !bookName || !content) {
+      return res.status(400).json({ message: '公司ID、推送日期、书籍名称和书籍内容不能为空' })
     }
 
-    // 权限检查：操作员只能给自家公司创建任务
-    if (req.user.role !== 'superadmin' && req.user.companyId !== companyId) {
+    // 权限检查：操作员只能给自己管理的公司创建任务
+    const allowedIds = req.user.companyIds || [req.user.companyId]
+    if (req.user.role !== 'superadmin' && !allowedIds.includes(companyId)) {
       return res.status(403).json({ message: '无权为其他公司创建推送任务' })
     }
 
     const [result] = await pool.execute(
-      `INSERT INTO push_tasks (company_id, company_name, title, push_date, push_time, book_name, content, webhook, exec_status, status)
+      `INSERT INTO push_tasks (company_id, company_name, title, push_title, push_date, book_name, content, webhook, exec_status, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         companyId,
         companyName || '',
         title || '今日读书分享',
+        pushTitle || '【每日分享】',
         pushDate,
-        pushTime,
         bookName,
         content,
         webhook || '',
@@ -78,17 +90,18 @@ router.put('/:id', async (req, res, next) => {
     if (!task) return res.status(404).json({ message: '推送任务不存在' })
 
     // 权限检查
-    if (req.user.role !== 'superadmin' && req.user.companyId !== task.company_id) {
+    const allowedIds = req.user.companyIds || [req.user.companyId]
+    if (req.user.role !== 'superadmin' && !allowedIds.includes(task.company_id)) {
       return res.status(403).json({ message: '无权修改其他公司的推送任务' })
     }
 
-    const { title, pushDate, pushTime, bookName, content, webhook, status, execStatus } = req.body
+    const { title, pushTitle, pushDate, bookName, content, webhook, status, execStatus } = req.body
     await pool.execute(
-      `UPDATE push_tasks SET title = ?, push_date = ?, push_time = ?, book_name = ?, content = ?, webhook = ?, exec_status = ?, status = ? WHERE id = ?`,
+      `UPDATE push_tasks SET title = ?, push_title = ?, push_date = ?, book_name = ?, content = ?, webhook = ?, exec_status = ?, status = ? WHERE id = ?`,
       [
         title ?? task.title,
+        pushTitle ?? task.push_title,
         pushDate ?? task.push_date,
-        pushTime ?? task.push_time,
         bookName ?? task.book_name,
         content ?? task.content,
         webhook ?? task.webhook,
@@ -113,10 +126,12 @@ router.delete('/:id', async (req, res, next) => {
     const task = taskRows[0]
     if (!task) return res.status(404).json({ message: '推送任务不存在' })
 
-    if (req.user.role !== 'superadmin' && req.user.companyId !== task.company_id) {
+    const allowedIds = req.user.companyIds || [req.user.companyId]
+    if (req.user.role !== 'superadmin' && !allowedIds.includes(task.company_id)) {
       return res.status(403).json({ message: '无权删除其他公司的推送任务' })
     }
 
+    await pool.execute('DELETE FROM push_logs WHERE task_id = ?', [req.params.id])
     await pool.execute('DELETE FROM push_tasks WHERE id = ?', [req.params.id])
     res.json({ message: '删除成功' })
   } catch (err) {
@@ -144,13 +159,18 @@ router.post('/batch-delete', async (req, res, next) => {
       )
 
       // 权限过滤：操作员只能删除本公司的任务
+      const allowedCompanyIds = req.user.companyIds || [req.user.companyId]
       const allowedIds = allRows
-        .filter(row => req.user.role === 'superadmin' || req.user.companyId === row.company_id)
+        .filter(row => req.user.role === 'superadmin' || allowedCompanyIds.includes(row.company_id))
         .map(row => row.id)
 
       let deleted = 0
       if (allowedIds.length > 0) {
         const deletePlaceholders = allowedIds.map(() => '?').join(',')
+        await conn.execute(
+          `DELETE FROM push_logs WHERE task_id IN (${deletePlaceholders})`,
+          allowedIds
+        )
         const [result] = await conn.execute(
           `DELETE FROM push_tasks WHERE id IN (${deletePlaceholders})`,
           allowedIds
@@ -178,12 +198,13 @@ router.post('/:id/trigger', async (req, res, next) => {
     const task = taskRows[0]
     if (!task) return res.status(404).json({ message: '推送任务不存在' })
 
-    if (req.user.role !== 'superadmin' && req.user.companyId !== task.company_id) {
+    const allowedIds = req.user.companyIds || [req.user.companyId]
+    if (req.user.role !== 'superadmin' && !allowedIds.includes(task.company_id)) {
       return res.status(403).json({ message: '无权触发其他公司的推送任务' })
     }
 
     // 实时从公司表读取最新 webhook（避免任务中存的是旧地址）
-    const [companyRows] = await pool.execute('SELECT webhook FROM companies WHERE id = ?', [task.company_id])
+    const [companyRows] = await pool.execute('SELECT webhook, greeting, weather_enabled, weather_city FROM companies WHERE id = ?', [task.company_id])
     const company = companyRows[0]
     const webhookUrl = company?.webhook || task.webhook
 
@@ -191,7 +212,20 @@ router.post('/:id/trigger', async (req, res, next) => {
       return res.status(400).json({ message: '该任务未配置Webhook地址，无法推送' })
     }
 
-    const pushContent = `📖 ${task.book_name}\n\n${task.content}`
+    // 组装推送内容：开头语 + 天气预报 + 标题和内容
+    let pushParts = []
+    if (company?.greeting) {
+      pushParts.push(company.greeting)
+    }
+    if (company?.weather_enabled && company?.weather_city) {
+      const weatherText = await fetchWeather(company.weather_city)
+      if (weatherText) {
+        pushParts.push(weatherText)
+      }
+    }
+    pushParts.push(task.push_title || '【每日分享】')
+    pushParts.push(`📖 ${task.book_name}\n\n${task.content}`)
+    const pushContent = pushParts.join('\n\n')
 
     try {
       await axios.post(webhookUrl, {
@@ -211,6 +245,17 @@ router.post('/:id/trigger', async (req, res, next) => {
     }
 
     await pool.execute('UPDATE push_tasks SET exec_status = ? WHERE id = ?', ['pushed', req.params.id])
+
+    // 记录推送日志
+    const logNow = new Date()
+    const logDate = `${logNow.getFullYear()}-${String(logNow.getMonth() + 1).padStart(2, '0')}-${String(logNow.getDate()).padStart(2, '0')}`
+    const logTime = `${String(logNow.getHours()).padStart(2, '0')}:${String(logNow.getMinutes()).padStart(2, '0')}:${String(logNow.getSeconds()).padStart(2, '0')}`
+    await pool.execute(
+      `INSERT INTO push_logs (task_id, company_id, company_name, push_date, push_time, book_name, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'success')`,
+      [task.id, task.company_id, task.company_name, logDate, logTime, task.book_name]
+    )
+
     const [updatedRows] = await pool.execute('SELECT * FROM push_tasks WHERE id = ?', [req.params.id])
     const updated = updatedRows[0]
     res.json({ data: updated, message: '推送成功！' })
@@ -241,14 +286,14 @@ router.post('/import/:companyId', async (req, res, next) => {
       const inserted = []
       for (const item of tasks) {
         const [result] = await conn.execute(
-          `INSERT INTO push_tasks (company_id, company_name, title, push_date, push_time, book_name, content, webhook, exec_status, status)
+          `INSERT INTO push_tasks (company_id, company_name, title, push_title, push_date, book_name, content, webhook, exec_status, status)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             companyId,
             company.name,
-            '今日读书分享',
+            item.title || '今日读书分享',
+            item.pushTitle || '【每日分享】',
             item.pushDate,
-            item.pushTime || '00:00',
             item.bookName,
             item.content,
             company.webhook,

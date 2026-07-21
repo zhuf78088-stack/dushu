@@ -1,11 +1,13 @@
 import jwt from 'jsonwebtoken'
+import pool from '../db/mysql.js'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'reading-push-system-dev-secret-change-in-production'
 const JWT_EXPIRES_IN = '7d'
 
 export function generateToken(user) {
+  const companyIds = user.companyIds || (user.company_id ? [user.company_id] : [])
   return jwt.sign(
-    { id: user.id, username: user.username, name: user.name, role: user.role, companyId: user.company_id, companyName: user.company_name },
+    { id: user.id, username: user.username, name: user.name, role: user.role, companyIds, companyId: companyIds[0] || null, companyName: user.company_name || '' },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRES_IN }
   )
@@ -30,6 +32,11 @@ export function authMiddleware(req, res, next) {
   const decoded = verifyToken(token)
   if (!decoded) {
     return res.status(401).json({ message: 'token无效或已过期' })
+  }
+
+  // 兼容旧 token 没有 companyIds 字段的情况
+  if (!decoded.companyIds) {
+    decoded.companyIds = decoded.companyId ? [decoded.companyId] : []
   }
 
   req.user = decoded

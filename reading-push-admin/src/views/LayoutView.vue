@@ -65,11 +65,16 @@ const authStore = useAuthStore()
 
 const activeMenu = computed(() => route.path)
 
-const menuItems = [
-  { path: '/dashboard', title: '数据概览', icon: 'DataLine' },
-  { path: '/reading-push', title: '读书推送', icon: 'Reading' },
-  { path: '/users', title: '用户管理', icon: 'UserFilled' }
-]
+const menuItems = computed(() => {
+  const items = [
+    { path: '/dashboard', title: '数据概览', icon: 'DataLine' },
+    { path: '/reading-push', title: '读书推送', icon: 'Reading' }
+  ]
+  if (authStore.isSuperAdmin) {
+    items.push({ path: '/users', title: '用户管理', icon: 'UserFilled' })
+  }
+  return items
+})
 
 const handleCommand = async (cmd) => {
   if (cmd === 'logout') {

@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span>读书推送</span>
-          <el-button type="primary" :icon="Plus" @click="handleAdd">新增公司</el-button>
+          <el-button v-if="authStore.isSuperAdmin" type="primary" :icon="Plus" @click="handleAdd">新增公司</el-button>
         </div>
       </template>
 
@@ -37,6 +37,7 @@
         <el-table-column prop="contact" label="联系人" width="100" />
         <el-table-column prop="phone" label="联系电话" width="130" />
         <el-table-column prop="webhook" label="Webhook地址" min-width="280" show-overflow-tooltip />
+        <el-table-column prop="push_time" label="默认推送时间" width="120" />
         <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 'active' ? 'success' : 'info'">
@@ -48,8 +49,8 @@
         <el-table-column label="操作" width="240" fixed="right">
           <template #default="{ row }">
             <el-button type="warning" link :icon="Bell" @click="goPushTasks(row)">读书推送</el-button>
-            <el-button type="primary" link :icon="Edit" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="danger" link :icon="Delete" @click="handleDelete(row)">删除</el-button>
+            <el-button type="primary" link :icon="Edit" @click="handleEdit(row)" v-if="authStore.isSuperAdmin">编辑</el-button>
+            <el-button type="danger" link :icon="Delete" @click="handleDelete(row)" v-if="authStore.isSuperAdmin">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -69,6 +70,24 @@
         </el-form-item>
         <el-form-item label="Webhook地址" prop="webhook">
           <el-input v-model="form.webhook" type="textarea" :rows="2" placeholder="请输入企业微信群Webhook地址" />
+        </el-form-item>
+        <el-form-item label="默认推送时间" prop="pushTime">
+          <el-time-picker v-model="form.pushTime" placeholder="选择默认推送时间" style="width: 100%" format="HH:mm" value-format="HH:mm" />
+        </el-form-item>
+        <el-form-item label="开头语" prop="greeting">
+          <el-input v-model="form.greeting" type="textarea" :rows="2" placeholder="请输入推送开头语（选填）" />
+        </el-form-item>
+        <el-form-item label="天气预报">
+          <el-switch v-model="form.weatherEnabled" active-text="开启" inactive-text="关闭" />
+        </el-form-item>
+        <el-form-item v-if="form.weatherEnabled" label="选择城市" prop="weatherCity">
+          <el-cascader
+            v-model="form.weatherCity"
+            :options="CITY_OPTIONS"
+            placeholder="请选择省份和城市"
+            style="width: 100%"
+            clearable
+          />
         </el-form-item>
         <el-form-item label="状态" prop="status">
           <el-radio-group v-model="form.status">
@@ -91,8 +110,11 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete, Bell, Refresh } from '@element-plus/icons-vue'
 import { companyApi, pushTaskApi } from '../api'
+import { useAuthStore } from '../stores/auth'
+import { CITY_OPTIONS } from '../utils/cities'
 
 const router = useRouter()
+const authStore = useAuthStore()
 const loading = ref(false)
 const tableData = ref([])
 
@@ -122,7 +144,8 @@ const submitting = ref(false)
 const formRef = ref()
 
 const form = reactive({
-  id: null, name: '', contact: '', phone: '', webhook: '', status: 'active'
+  id: null, name: '', contact: '', phone: '', webhook: '', pushTime: '09:00',
+  greeting: '', weatherEnabled: false, weatherCity: [], status: 'active'
 })
 
 const rules = {
@@ -141,7 +164,8 @@ const fetchList = async () => {
 }
 
 const resetForm = () => {
-  form.id = null; form.name = ''; form.contact = ''; form.phone = ''; form.webhook = ''; form.status = 'active'
+  form.id = null; form.name = ''; form.contact = ''; form.phone = ''; form.webhook = ''; form.pushTime = '09:00'
+  form.greeting = ''; form.weatherEnabled = false; form.weatherCity = []; form.status = 'active'
 }
 
 const goPushTasks = (row) => { router.push(`/reading-push/${row.id}`) }
@@ -151,7 +175,19 @@ const handleAdd = () => { isEdit.value = false; resetForm(); dialogVisible.value
 const handleEdit = (row) => {
   isEdit.value = true
   form.id = row.id; form.name = row.name; form.contact = row.contact
-  form.phone = row.phone; form.webhook = row.webhook; form.status = row.status
+  form.phone = row.phone; form.webhook = row.webhook; form.pushTime = row.push_time
+  form.greeting = row.greeting || ''
+  form.weatherEnabled = !!row.weather_enabled
+  // 将存储的城市名转换回 Cascader 需要的路径数组 [省份, 城市]
+  if (row.weather_city) {
+    for (const prov of CITY_OPTIONS) {
+      const city = prov.children?.find(c => c.value === row.weather_city)
+      if (city) { form.weatherCity = [prov.value, city.value]; break }
+    }
+  } else {
+    form.weatherCity = []
+  }
+  form.status = row.status
   dialogVisible.value = true
 }
 
@@ -181,11 +217,17 @@ const handleSubmit = async () => {
   if (!valid) return
   submitting.value = true
   try {
+    const payload = {
+      ...form,
+      weatherCity: Array.isArray(form.weatherCity) && form.weatherCity.length > 0
+        ? form.weatherCity[form.weatherCity.length - 1]
+        : ''
+    }
     if (isEdit.value) {
-      await companyApi.update(form.id, { ...form })
+      await companyApi.update(form.id, payload)
       ElMessage.success('修改成功')
     } else {
-      await companyApi.create({ ...form })
+      await companyApi.create(payload)
       ElMessage.success('新增成功')
     }
     dialogVisible.value = false
